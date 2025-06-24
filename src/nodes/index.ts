@@ -1,19 +1,19 @@
 import type { NodeTypes } from '@xyflow/react';
 
-import { InitNode } from './initNode';
+import { SchemaNode } from './schemaNode';
 import { AppNode } from './types';
-import { onNameChange } from './initNode';
+import { onNameChange } from './schemaNode';
 
 export const initialNodes: AppNode[] = [
   {
     id: 'a',
-    type: 'init-node',
+    type: 'schema-node',
     position: { x: -100, y: 100 },
     data: { schemaName: '', onNameChange},
   }
 ];
 
 export const nodeTypes = {
-  'init-node': InitNode,
+  'schema-node': SchemaNode,
   // Add any of your custom nodes here!
 } satisfies NodeTypes;

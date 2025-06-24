@@ -1,41 +1,36 @@
 import React, { useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, Node } from '@xyflow/react';
 
-export type InitNode = Node<
+export type SchemaNode = Node<
   { 
     schemaName: string; 
-    description?: string; 
-    module?: string; 
     onNameChange?: (name: string) => void,
   },
-  'init-node'
+  'schema-node'
 >;
 
 export function onNameChange(name: string) {
   console.log("Schema name changed to:", name);
-  // Save info to some JSON and cache
   // Replace this with your EdgeDB initialization logic.
 }
 
-export function InitNode({ data, id }: NodeProps<InitNode>) {
+export function SchemaNode({ data, id }: NodeProps<SchemaNode>) {
   const { setNodes } = useReactFlow();
 
   const [formValues, setFormValues] = useState({
     schemaName: data.schemaName || '',
-    description: data.description || '',
-    module: data.module || '',
   });
 
-  // New state for custom fields. Extended to include an optional types property.
+  // New state for custom fields.
   const [customFields, setCustomFields] = useState<{ label: string; value: string; types?: string[] }[]>([]);
 
   const [showTypePopup, setShowTypePopup] = useState(false);
-  const [selectedFieldTypes, setSelectedFieldTypes] = useState<string[]>([]);
-  
+  const [enteredFieldName, setEnteredFieldName] = useState<string>('');
+  const [selectedFieldType, setSelectedFieldType] = useState<string>('');
+
   const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormValues((prev) => ({ ...prev, [name]: value }));
-    // Update the node's data via React Flow
     setNodes((nds) =>
       nds.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, [name]: value } } : n
@@ -52,7 +47,6 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
       newFields[index] = { ...newFields[index], value };
       return newFields;
     });
-    // Optionally update node data with custom fields:
     setNodes((nds) =>
       nds.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, customFields: customFields } } : n
@@ -60,29 +54,47 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
     );
   }, [id, setNodes, customFields]);
 
-  // Instead of immediately adding a field, show the popup to select schema types.
+  // Show type popup when + button is clicked.
   const handleAddField = useCallback(() => {
     setShowTypePopup(true);
   }, []);
 
-  // Called when user confirms selection from the popup.
-  const handleConfirmFieldAdd = useCallback(() => {
-    setCustomFields((prev) => [
-      ...prev,
-      { label: `Field ${prev.length + 1}`, value: '', types: selectedFieldTypes }
-    ]);
-    setShowTypePopup(false);
-    setSelectedFieldTypes([]);
-  }, [selectedFieldTypes]);
-
+  // Updated to use a single selectedFieldType
   const handlePopupTypeChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = Array.from(event.target.selectedOptions, option => option.value);
-    setSelectedFieldTypes(selected);
+    setSelectedFieldType(event.target.value);
   }, []);
+
+  const handleConfirmField = useCallback(() => {
+    console.log('Confirming field:', enteredFieldName, selectedFieldType);
+    if (enteredFieldName !== '' && selectedFieldType !== '') {
+      const newField = {
+        label: `${enteredFieldName} (${selectedFieldType})`, // Combine the field name and type here
+        value: '',
+        types: [selectedFieldType]
+      };
+      setCustomFields((prev) => [...prev, newField]);
+      setShowTypePopup(false);
+      setEnteredFieldName('');
+      setSelectedFieldType('');
+    }
+  }, [enteredFieldName, selectedFieldType]);
+
+  const availableTypes = [
+    'bool',
+    'str',
+    'int16',
+    'int32',
+    'float32',
+    'uuid',
+    'json',
+    'datetime',
+    'duration',
+    'bytes'
+  ];
 
   return (
     <div 
-      className="init-node-wrapper" 
+      className="schema-node-wrapper" 
       style={{
         border: '1px solid #ddd',
         borderRadius: '4px',
@@ -91,11 +103,9 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
         boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
         position: 'relative'
       }}
-    >
-      <Handle type="target" position={Position.Top} />
-      
+    >      
       <div 
-        className="init-node" 
+        className="schema-node" 
         style={{
           display: 'grid',
           gap: '10px',
@@ -121,49 +131,7 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
             onMouseDown={(e) => e.stopPropagation()}
           />
         </div>
-        
-        {/* Description row */}
-        <div 
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '120px 1fr',
-            alignItems: 'center',
-            gap: '10px'
-          }}
-        >
-          <label htmlFor={`description-${id}`}>Description:</label>
-          <input
-            id={`description-${id}`}
-            name="description"
-            type="text"
-            value={formValues.description}
-            onChange={handleInputChange}
-            placeholder="Enter Description"
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-        </div>
-        
-        {/* Module row */}
-        <div 
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '120px 1fr',
-            alignItems: 'center',
-            gap: '10px'
-          }}
-        >
-          <label htmlFor={`module-${id}`}>Module:</label>
-          <input
-            id={`module-${id}`}
-            name="module"
-            type="text"
-            value={formValues.module}
-            onChange={handleInputChange}
-            placeholder="Enter Module"
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-        </div>
-
+      
         {/* Render dynamic custom fields */}
         {customFields.map((field, index) => (
           <div 
@@ -176,15 +144,17 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
             }}
           >
             <label htmlFor={`customField-${id}-${index}`}>{field.label}:</label>
-            <input
+            <select
               id={`customField-${id}-${index}`}
               name={`customField-${index}`}
-              type="text"
               value={field.value}
               onChange={(e) => handleCustomFieldChange(index, e.target.value)}
-              placeholder="Enter Value"
               onMouseDown={(e) => e.stopPropagation()}
-            />
+              style={{ width: '100%' }}
+            >
+              <option value="optional">Optional</option>
+              <option value="required">Required</option>
+            </select>
           </div>
         ))}
 
@@ -207,17 +177,9 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
 
       <Handle type="source" position={Position.Bottom} />
 
-      {/* Popup for schema type multi-select */}
+      {/* Popup for schema type single-select */}
       {showTypePopup && (
         <div
-          onWheelCapture={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onWheel={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
           style={{
             position: 'absolute',
             top: '20%',
@@ -231,23 +193,30 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
             zIndex: 100,
           }}
         >
-          <h4>Select Schema Types</h4>
+          <div style={{ marginTop: '10px', marginBottom: '10px' }}>
+            <label htmlFor="fieldName">Field Name:</label>
+            <input 
+              id="fieldName"
+              type="text"
+              value={enteredFieldName}
+              onChange={(e) => setEnteredFieldName(e.target.value)}
+              placeholder="Enter Field Name"
+              style={{ width: '90%', marginTop: '5px' }}
+            />
+          </div>
+          <label htmlFor="fieldName">Select Field Type:</label>
           <select
-            multiple
-            value={selectedFieldTypes}
+            value={selectedFieldType}
             onChange={handlePopupTypeChange}
-            style={{ width: '100%', minHeight: '80px' }}
+            style={{ width: '100%', minHeight: '20px' }}
           >
-            <option value="bool">bool</option>
-            <option value="str">str</option>
-            <option value="int16">int16</option>
-            <option value="int32">int32</option>
-            <option value="float32">float32</option>
-            <option value="uuid">uuid</option>
-            <option value="json">json</option>
-            <option value="datetime">datetime</option>
-            <option value="duration">duration</option>
-            <option value="bytes">bytes</option>
+            <option value="" disabled>Select Type</option>
+            {/* Map through available types to create options */}
+            {availableTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
           </select>
           <div style={{ marginTop: '10px', textAlign: 'right' }}>
             <button 
@@ -264,7 +233,7 @@ export function InitNode({ data, id }: NodeProps<InitNode>) {
               Cancel
             </button>
             <button 
-              onClick={handleConfirmFieldAdd}
+              onClick={handleConfirmField}
               style={{
                 padding: '5px 10px',
                 border: 'none',
